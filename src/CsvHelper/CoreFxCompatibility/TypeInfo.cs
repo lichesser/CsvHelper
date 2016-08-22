@@ -9,11 +9,17 @@ namespace System.Reflection
 
 	    public Type BaseType => type.BaseType;
 
+		public bool ContainsGenericParameters => type.ContainsGenericParameters;
+
+	    public Type[] GenericTypeArguments => type.GetGenericArguments();
+
 	    public bool IsClass => type.IsClass;
 
 		public bool IsGenericType => type.IsGenericType;
 
-	    public bool IsPrimitive => type.IsPrimitive;
+	    public bool IsInterface => type.IsInterface;
+
+		public bool IsPrimitive => type.IsPrimitive;
 
 	    public bool IsValueType => type.IsValueType;
 

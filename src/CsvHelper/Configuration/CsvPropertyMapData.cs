@@ -14,10 +14,7 @@ namespace CsvHelper.Configuration
 	/// </summary>
 	public class CsvPropertyMapData
 	{
-		private readonly CsvPropertyNameCollection names = new CsvPropertyNameCollection();
-		private int index = -1;
 		private object defaultValue;
-		private readonly TypeConverterOptions typeConverterOptions = new TypeConverterOptions();
 
 		/// <summary>
 		/// Gets the <see cref="PropertyInfo"/> that the data
@@ -28,10 +25,7 @@ namespace CsvHelper.Configuration
 		/// <summary>
 		/// Gets the list of column names.
 		/// </summary>
-		public virtual CsvPropertyNameCollection Names
-		{
-			get { return names; }
-		}
+		public virtual CsvPropertyNameCollection Names { get; } = new CsvPropertyNameCollection();
 
 		/// <summary>
 		/// Gets or sets the index of the name.
@@ -50,11 +44,7 @@ namespace CsvHelper.Configuration
 		/// <summary>
 		/// Gets or sets the column index.
 		/// </summary>
-		public virtual int Index
-		{
-			get { return index; }
-			set { index = value; }
-		}
+		public virtual int Index { get; set; } = -1;
 
 		/// <summary>
 		/// Gets or sets a value indicating if the index was
@@ -71,10 +61,7 @@ namespace CsvHelper.Configuration
 		/// <summary>
 		/// Gets or sets the type converter options.
 		/// </summary>
-		public virtual TypeConverterOptions TypeConverterOptions
-		{
-			get { return typeConverterOptions; }
-		}
+		public virtual TypeConverterOptions TypeConverterOptions { get; } = new TypeConverterOptions();
 
 		/// <summary>
 		/// Gets or sets a value indicating whether the field should be ignored.

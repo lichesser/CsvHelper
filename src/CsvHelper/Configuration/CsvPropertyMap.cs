@@ -4,6 +4,7 @@
 // http://csvhelper.com
 #if !NET_2_0
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -20,27 +21,22 @@ namespace CsvHelper.Configuration
 	[DebuggerDisplay( "Names = {string.Join(\",\", Data.Names)}, Index = {Data.Index}, Ignore = {Data.Ignore}, Property = {Data.Property}, TypeConverter = {Data.TypeConverter}" )]
 	public class CsvPropertyMap
 	{
-		private readonly CsvPropertyMapData data;
-
 		/// <summary>
 		/// Gets the property map data.
 		/// </summary>
-		public CsvPropertyMapData Data
-		{
-			get { return data; }
-		}
+		public CsvPropertyMapData Data { get; }
 
 		/// <summary>
 		/// Creates a new <see cref="CsvPropertyMap"/> instance using the specified property.
 		/// </summary>
 		public CsvPropertyMap( PropertyInfo property )
 		{
-			data = new CsvPropertyMapData( property )
+			Data = new CsvPropertyMapData( property )
 			{
 				// Set some defaults.
 				TypeConverter = TypeConverterFactory.GetConverter( property.PropertyType )
 			};
-			data.Names.Add( property.Name );
+			Data.Names.Add( property.Name );
 		}
 
 		/// <summary>
@@ -57,12 +53,12 @@ namespace CsvHelper.Configuration
 		{
 			if( names == null || names.Length == 0 )
 			{
-				throw new ArgumentNullException( "names" );
+				throw new ArgumentNullException( nameof( names ) );
 			}
 
-			data.Names.Clear();
-			data.Names.AddRange( names );
-			data.IsNameSet = true;
+			Data.Names.Clear();
+			Data.Names.AddRange( names );
+			Data.IsNameSet = true;
 			return this;
 		}
 
@@ -74,7 +70,7 @@ namespace CsvHelper.Configuration
 		/// <param name="index">The index of the name.</param>
 		public virtual CsvPropertyMap NameIndex( int index )
 		{
-			data.NameIndex = index;
+			Data.NameIndex = index;
 			return this;
 		}
 
@@ -87,8 +83,85 @@ namespace CsvHelper.Configuration
 		/// <param name="index">The index of the CSV field.</param>
 		public virtual CsvPropertyMap Index( int index )
 		{
-			data.Index = index;
-			data.IsIndexSet = true;
+			Data.Index = index;
+			Data.IsIndexSet = true;
+			return this;
+		}
+
+		public virtual CsvPropertyMap IndexRange( int startIndex, int endIndex = -1 )
+		{
+			var listType = Data.Property.PropertyType;
+
+			var isInterface = listType.GetTypeInfo().IsInterface;
+			var isGenericType = listType.GetTypeInfo().IsGenericType;
+			var isArray = listType.IsArray;
+			var genericType = isGenericType ? listType.GetGenericTypeDefinition() : null;
+
+			if( !typeof( IList ).IsAssignableFrom( listType ) && !typeof( IList<> ).IsAssignableFrom( genericType ) )
+			{
+				// Only allow implementors of IList and IList<> to use IndexRange.
+				throw new CsvConfigurationException( $"Property of type '{listType.FullName}' is not supported with Range mapping." );
+			}
+
+			Type itemType;
+			if( isGenericType )
+			{
+				itemType = listType.GetTypeInfo().GenericTypeArguments.FirstOrDefault();
+			}
+			else if( isArray )
+			{
+				itemType = listType.GetElementType();
+			}
+			else
+			{
+				itemType = typeof( string );
+			}
+
+			if( isInterface )
+			{
+				// We need to create our own type since only an interface was given.
+				listType = typeof( List<> ).MakeGenericType( itemType );
+			}
+
+			if( isArray )
+			{
+				ConvertUsing( row =>
+				{
+					if( endIndex == -1 )
+					{
+						endIndex = row.CurrentRecord.Length - 1;
+					}
+					var list = (Array)ReflectionHelper.CreateInstance( listType, endIndex - startIndex + 1 );
+
+					var arrayIndex = 0;
+					for( var rowIndex = startIndex; rowIndex <= endIndex; rowIndex++ )
+					{
+						list.SetValue( row.GetField( itemType, rowIndex ), arrayIndex );
+						arrayIndex++;
+					}
+
+					return list;
+				} );
+			}
+			else
+			{
+				ConvertUsing( row =>
+				{
+					var list = (IList)ReflectionHelper.CreateInstance( listType );
+					if( endIndex == -1 )
+					{
+						endIndex = row.CurrentRecord.Length - 1;
+					}
+
+					for( var i = startIndex; i <= endIndex; i++ )
+					{
+						list.Add( row.GetField( itemType, i ) );
+					}
+
+					return list;
+				} );
+			}
+
 			return this;
 		}
 
@@ -97,7 +170,7 @@ namespace CsvHelper.Configuration
 		/// </summary>
 		public virtual CsvPropertyMap Ignore()
 		{
-			data.Ignore = true;
+			Data.Ignore = true;
 			return this;
 		}
 
@@ -107,7 +180,7 @@ namespace CsvHelper.Configuration
 		/// <param name="ignore">True to ignore, otherwise false.</param>
 		public virtual CsvPropertyMap Ignore( bool ignore )
 		{
-			data.Ignore = ignore;
+			Data.Ignore = ignore;
 			return this;
 		}
 
@@ -118,7 +191,7 @@ namespace CsvHelper.Configuration
 		/// <param name="defaultValue">The default value.</param>
 		public virtual CsvPropertyMap Default( object defaultValue )
 		{
-			data.Default = defaultValue;
+			Data.Default = defaultValue;
 			return this;
 		}
 
@@ -129,7 +202,7 @@ namespace CsvHelper.Configuration
 		/// <param name="typeConverter">The TypeConverter to use.</param>
 		public virtual CsvPropertyMap TypeConverter( ITypeConverter typeConverter )
 		{
-			data.TypeConverter = typeConverter;
+			Data.TypeConverter = typeConverter;
 			return this;
 		}
 
@@ -153,7 +226,13 @@ namespace CsvHelper.Configuration
 		/// <param name="convertExpression">The convert expression.</param>
 		public virtual CsvPropertyMap ConvertUsing<T>( Func<ICsvReaderRow, T> convertExpression )
 		{
-			data.ConvertExpression = (Expression<Func<ICsvReaderRow, T>>)( x => convertExpression( x ) );
+			//if( !Data.Property.PropertyType.IsAssignableFrom( typeof( T ) ) )
+			//{
+			//	throw new CsvConfigurationException( $"The given type of '{typeof( T ).FullName}' does not match the property type of '{Data.Property.PropertyType.FullName}'." );
+			//}
+
+			Data.ConvertExpression = (Expression<Func<ICsvReaderRow, T>>)( x => convertExpression( x ) );
+
 			return this;
 		}
 
@@ -165,7 +244,7 @@ namespace CsvHelper.Configuration
 		/// <param name="cultureInfo">The culture info.</param>
 		public virtual CsvPropertyMap TypeConverterOption( CultureInfo cultureInfo )
 		{
-			data.TypeConverterOptions.CultureInfo = cultureInfo;
+			Data.TypeConverterOptions.CultureInfo = cultureInfo;
 			return this;
 		}
 
@@ -176,7 +255,7 @@ namespace CsvHelper.Configuration
 		/// <param name="dateTimeStyle">The date time style.</param>
 		public virtual CsvPropertyMap TypeConverterOption( DateTimeStyles dateTimeStyle )
 		{
-			data.TypeConverterOptions.DateTimeStyle = dateTimeStyle;
+			Data.TypeConverterOptions.DateTimeStyle = dateTimeStyle;
 			return this;
 		}
 
@@ -187,7 +266,7 @@ namespace CsvHelper.Configuration
 		/// <param name="numberStyle"></param>
 		public virtual CsvPropertyMap TypeConverterOption( NumberStyles numberStyle )
 		{
-			data.TypeConverterOptions.NumberStyle = numberStyle;
+			Data.TypeConverterOptions.NumberStyle = numberStyle;
 			return this;
 		}
 
@@ -197,7 +276,7 @@ namespace CsvHelper.Configuration
 		/// <param name="format">The format.</param>
 		public virtual CsvPropertyMap TypeConverterOption( string format )
 		{
-			data.TypeConverterOptions.Format = format;
+			Data.TypeConverterOptions.Format = format;
 			return this;
 		}
 
@@ -223,17 +302,17 @@ namespace CsvHelper.Configuration
 			{
 				if( clearValues )
 				{
-					data.TypeConverterOptions.BooleanTrueValues.Clear();
+					Data.TypeConverterOptions.BooleanTrueValues.Clear();
 				}
-				data.TypeConverterOptions.BooleanTrueValues.AddRange( booleanValues );
+				Data.TypeConverterOptions.BooleanTrueValues.AddRange( booleanValues );
 			}
 			else
 			{
 				if( clearValues )
 				{
-					data.TypeConverterOptions.BooleanFalseValues.Clear();
+					Data.TypeConverterOptions.BooleanFalseValues.Clear();
 				}
-				data.TypeConverterOptions.BooleanFalseValues.AddRange( booleanValues );
+				Data.TypeConverterOptions.BooleanFalseValues.AddRange( booleanValues );
 			}
 			return this;
 		}

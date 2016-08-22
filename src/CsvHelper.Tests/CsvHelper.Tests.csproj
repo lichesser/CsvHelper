@@ -93,6 +93,7 @@
     <Compile Include="Parsing\CommentTests.cs" />
     <Compile Include="Parsing\DelimiterTests.cs" />
     <Compile Include="Reading\ReadHeaderTests.cs" />
+    <Compile Include="Reading\ReadIEnumerableTests.cs" />
     <Compile Include="Reading\ShouldSkipRecordTests.cs" />
     <Compile Include="Reading\TryGetTests.cs" />
     <Compile Include="ReferenceMappingClassMapTests.cs" />
